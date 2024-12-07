@@ -1,12 +1,3 @@
-(+ 5 5)
-(defun test-fun (x)
-  (+ x 5))
-
-(defun asrt (condition descr)
-  (if condition
-      (format t "AssertionSuccess:~A~%" descr)
-      (error "AssertionFailure:~A~%" descr)))
-
 (defparameter actual-input
               (split-sequence:split-sequence
                 #\newline

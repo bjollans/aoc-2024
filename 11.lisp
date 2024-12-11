@@ -38,12 +38,12 @@
 (assert (equal '("12" "18" "0") (split "12 18 0")))
 
 (defun join (lst)
-    (format nil "~{~a~^ ~}" lst))
+  (format nil "~{~a~^ ~}" lst))
 
 (assert (equal "12 18 0" (join (split "12 18 0"))))
 
 (defun reduce-zeroes (num-str)
-    (format nil "~d" (parse-integer num-str)))
+  (format nil "~d" (parse-integer num-str)))
 
 ;; ********
 ;; SOLUTION
@@ -63,26 +63,36 @@
 
 
 (defun transform-stones (stones)
-    (join (mapcan #'transform-stone (split stones))))
+  (join (mapcan #'transform-stone (split stones))))
 
 (assert (equal "253000 1 7" (transform-stones test-input)))
 
 (defun blink (stones times)
-    (with-print (format nil "blinking stones. Times: ~d; Length: ~d" times (length (split stones)))
-     (if (= 0 times) 
-        stones
-        (blink (transform-stones stones) (1- times)))))
+  (with-print (format nil "blinking stones. Times: ~d; Length: ~d" times (length (split stones)))
+              (if (= 0 times)
+                  stones
+                  (blink (transform-stones stones) (1- times)))))
+
+(defun tree-blink (stones-list times)
+  (if (= 0 times)
+      stones-list
+      (mapcan (lambda (stone)
+                (tree-blink (transform-stone stone) (1- times)))
+          stones-list)))
+
 
 (assert (string= "253000 1 7" (blink test-input 1)))
+(assert (equal '("253000" "1" "7") (tree-blink (split test-input) 1)))
 (assert (string= "253 0 2024 14168" (blink test-input 2)))
 (assert (string= "2097446912 14168 4048 2 0 2 4 40 48 2024 40 48 80 96 2 8 6 7 6 0 3 2" (blink test-input 6)))
+(assert (equal '("2097446912" "14168" "4048" "2" "0" "2" "4" "40" "48" "2024" "40" "48" "80" "96" "2" "8" "6" "7" "6" "0" "3" "2") (tree-blink (split test-input) 6)))
 (assert (string= "1 2024 1 0 9 9 2021976" (blink "0 1 10 99 999" 1)))
 
 (defun do-part-1 (input)
-    (length (split (blink input 25))))
+  (length (tree-blink (split input) 25)))
 
 (assert (= 55312 (do-part-1 test-input)))
 
 
 (defun do-part-2 (input)
-    (length (split (blink input 75))))
+  (length (split (blink input 75))))

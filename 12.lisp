@@ -101,6 +101,9 @@
 (defparameter UP '(0 -1))
 (defparameter DOWN '(0 1))
 
+(defun add-coords (c1 c2)
+  (mapcar #'+ c1 c2))
+
 (defun get-next-coord (coords direction) (mapcar #'+ coords direction))
 
 (defun get-val-in-dir (coords direction grid)
@@ -189,16 +192,67 @@
       (append coords-so-far (list (first coords-queue)))))))
 
 (defun all-plots (grid coords-to-check &optional (plots-so-far '()))
-  (unique (let ((new-coords-to-check (time-expr (filter-existing (reduce #'append plots-so-far) coords-to-check))))
+  (unique (let ((new-coords-to-check (filter-existing (reduce #'append plots-so-far) coords-to-check)))
             (if new-coords-to-check
-                (let* ((next-plot (time-expr (get-plot-coords-lst (list (print-val (first new-coords-to-check))) grid)))
+                (let* ((next-plot (get-plot-coords-lst (list (print-val (first new-coords-to-check))) grid))
                        (new-plots (append plots-so-far (list next-plot))))
                   (append new-plots (all-plots grid new-coords-to-check new-plots)))))))
 
 (defun get-all-plots (grid)
-  (time-expr (all-plots grid (all-coords grid))))
+  (all-plots grid (all-coords grid)))
 
 (defun get-all-fence-prices (grid)
   (apply #'+ (mapcar (partial #'price-from-plot grid) (get-all-plots grid))))
 
 (assert (= 1930 (get-all-fence-prices test-input)))
+
+
+; for part 2 count corners -> same amount as edges
+; corners happen if
+; DOWN and RIGHT are other => +1
+; UP and RIGHT are other => +1
+; UP and LEFT are other => +1
+; DOWN and LEFT are other => +1
+; UP and RIGHT are same one, but TOP-RIGHT(diagonal) is other
+; DOWN and RIGHT are same one, but BOT-RIGHT(diagonal) is other
+; UP and LEFT are same one, but TOP-LEFT(diagonal) is other
+; DOWN and LEFT are same one, but BOT-LEFT(diagonal) is other
+
+(defun in (coords-list coords)
+  (member coords coords-list :test #'equal))
+
+
+(defun count-corners (coords coords-list)
+  (let ((up-spot (add-coords coords UP))
+        (right-spot (add-coords coords RIGHT))
+        (down-spot (add-coords coords DOWN))
+        (left-spot (add-coords coords LEFT))
+        (up-right-spot (add-coords (add-coords coords UP) RIGHT))
+        (down-right-spot (add-coords (add-coords coords DOWN) RIGHT))
+        (up-left-spot (add-coords (add-coords coords UP) LEFT))
+        (down-left-spot (add-coords (add-coords coords DOWN) LEFT))
+        (corner-count 0))
+    (progn
+     (if (print-val (and (not (in coords-list up-spot)) (not (in coords-list right-spot)))) (setf corner-count (1+ corner-count)))
+     (if (print-val (and (not (in coords-list up-spot)) (not (in coords-list left-spot)))) (setf corner-count (1+ corner-count)))
+     (if (print-val (and (not (in coords-list down-spot)) (not (in coords-list right-spot)))) (setf corner-count (1+ corner-count)))
+     (if (print-val (and (not (in coords-list down-spot)) (not (in coords-list left-spot)))) (setf corner-count (1+ corner-count)))
+     (if (print-val (and (not (in coords-list down-left-spot)) (in coords-list down-spot) (in coords-list left-spot))) (setf corner-count (1+ corner-count)))
+     (if (print-val (and (not (in coords-list down-right-spot)) (in coords-list down-spot) (in coords-list right-spot))) (setf corner-count (1+ corner-count)))
+     (if (print-val (and (not (in coords-list up-left-spot)) (in coords-list up-spot) (in coords-list left-spot))) (setf corner-count (1+ corner-count)))
+     (if (print-val (and (not (in coords-list up-right-spot)) (in coords-list up-spot) (in coords-list right-spot))) (setf corner-count (1+ corner-count)))
+     corner-count)))
+
+(defun count-plot-corners (plot)
+  (apply #'+ (mapcar (partial #'count-corners plot) plot)))
+
+
+
+(defun discounted-price-from-plot (plot)
+  (* (count-plot-corners plot) (area-from-lot plot)))
+
+
+(defun get-all-fence-discounted-prices (grid)
+  (apply #'+ (mapcar #'discounted-price-from-plot (get-all-plots grid))))
+
+(assert (= 1206 (get-all-fence-discounted-prices test-input)))

@@ -108,10 +108,8 @@
   (let* ((a (first ab))
          (b (second ab))
          (a-cnt (1+ (floor result a)))
-         ;  (cnt 0)
          (subtractor 1))
     (loop while (> a-cnt 0)
-            ; do (setf cnt (1+ (print-val cnt)))
           do (setf a-cnt (- a-cnt subtractor))
             when (let ((remainder (- result (* a-cnt a))))
                    (if (= 0 (mod remainder b)) (let ((combination (list a-cnt (floor remainder b))))
@@ -166,17 +164,37 @@
 (assert (= 280 (cheapest-possible-combination-price '(94 22) 8400 '(34 67) 5400)))
 
 (defun get-cheapest-tokens-for-machine-descr (machine-descr)
-  (progn 
+  (progn
    (format t "DOING: ~a" machine-descr)
-   (time-expr (cheapest-possible-combination-price
-    (get-ab-x machine-descr)
-    (get-result-x machine-descr)
-    (get-ab-y machine-descr)
-    (get-result-y machine-descr)))))
+   (cheapest-possible-combination-price
+     (get-ab-x machine-descr)
+     (get-result-x machine-descr)
+     (get-ab-y machine-descr)
+     (get-result-y machine-descr))))
+
+(defun calc-price (machine-descr)
+  (let* ((xa (first (get-ab-x machine-descr)))
+         (xb (second (get-ab-x machine-descr)))
+         (ya (first (get-ab-y machine-descr)))
+         (yb (second (get-ab-y machine-descr)))
+         (rx (+ (get-result-x machine-descr) 10000000000000))
+         (ry (+ (get-result-y machine-descr) 10000000000000))
+         (ma (/
+               (- (/ rx xa) (/ (* xb ry) (* xa yb)))
+               (- 1 (/ (* xb ya) (* xa yb)))))
+         (mb (/ (- ry (* ma ya)) yb)))
+    (if (and (= (floor ma) ma) (= (floor mb) mb))
+        (calc-combination-price (list ma mb)))))
 
 (assert (= 280 (get-cheapest-tokens-for-machine-descr (first (get-machine-descrs test-input)))))
+(assert (= 280 (calc-price (first (get-machine-descrs test-input)))))
 
 (defun get-cheapest-total (input)
   (apply #'+ (remove NIL (mapcar #'get-cheapest-tokens-for-machine-descr (get-machine-descrs input)))))
 
 (assert (= 480 (get-cheapest-total test-input)))
+
+(defun calc-total (input)
+  (apply #'+ (remove NIL (mapcar #'calc-price (get-machine-descrs input)))))
+
+(assert (= 480 (calc-total test-input)))

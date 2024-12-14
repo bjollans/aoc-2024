@@ -31,19 +31,19 @@
               (list
                "Button A: X+94, Y+34"
                "Button B: X+22, Y+67"
-               "Prize: X=1000008400, Y=1000005400"
+               "Prize: X=10000000008400, Y=10000000005400"
                ""
                "Button A: X+26, Y+66"
                "Button B: X+67, Y+21"
-               "Prize: X=10000012748, Y=10000012176"
+               "Prize: X=100000000012748, Y=100000000012176"
                ""
                "Button A: X+17, Y+86"
                "Button B: X+84, Y+37"
-               "Prize: X=1000007870, Y=1000006450"
+               "Prize: X=10000000007870, Y=10000000006450"
                ""
                "Button A: X+69, Y+23"
                "Button B: X+27, Y+71"
-               "Prize: X=10000018641, Y=10000010279"
+               "Prize: X=100000000018641, Y=100000000010279"
                ""))
 
 ;; ******
@@ -101,8 +101,25 @@
 ;; SOLUTION
 ;; ********
 
+; FIND FIRST COMBINATION FOR BOTH Ys AND Xs
+; THEN SUBTRACT BY LCM ON BOTH NUMBERS UNTIL THE COUNTS MATCH -> SHOULD BE AUTOMATICALLY FINDABLE
+; I know all LCMs that fit into the result belong to the more efficient one
+(defun find-combinations (ab result ab-y result-y)
+  (let* ((a (first ab))
+         (b (second ab))
+         (a-cnt (1+ (floor result a)))
+         ;  (cnt 0)
+         (subtractor 1))
+    (loop while (> a-cnt 0)
+            ; do (setf cnt (1+ (print-val cnt)))
+          do (setf a-cnt (- a-cnt subtractor))
+            when (let ((remainder (- result (* a-cnt a))))
+                   (if (= 0 (mod remainder b)) (let ((combination (list a-cnt (floor remainder b))))
+                                                 (progn (setf subtractor (floor (lcm a b) a))
+                                                        (if (is-combination-valid ab-y result-y combination) combination)))))
+            return it)))
 
-(defun find-combinations (ab result)
+(defun find-combinations-simple (ab result)
   (let* ((a (first ab))
          (b (second ab))
          (a-cnt (1+ (floor result a))))
@@ -112,7 +129,17 @@
                    (if (= 0 (mod remainder b)) (list a-cnt (floor remainder b))))
           collect it)))
 
-(assert (member '(80 40) (find-combinations '(94 22) 8400) :test #'equal))
+(defun find-best-combination-efficient (ab-x result-x ab-y result-y)
+  (if (<= (* 3 (+ (second ab-x) (second ab-y))) (+ (first ab-x) (first ab-y)))
+      (find-combinations ab-x result-x ab-y result-y)
+      (reverse (find-combinations (reverse ab-x) result-x (reverse ab-y) result-y))))
+
+(defun find-best-combination-with-lcm-opti (ab-x result-x ab-y result-y)
+  (if (> (apply #'lcm ab-x) (apply #'lcm ab-x))
+      (find-best-combination-efficient ab-x result-x ab-y result-y)
+      (find-best-combination-efficient ab-y result-y ab-x result-x)))
+
+(assert (equal '(80 40) (find-best-combination-efficient '(94 22) 8400 '(34 67) 5400)))
 
 (defun calc-combination-price (combination)
   (+ (* 3 (first combination)) (second combination)))
@@ -124,26 +151,28 @@
 
 (assert (is-combination-valid '(34 67) 5400 '(80 40)))
 
-(defun find-both-combinations (ab-x result-x ab-y result-y)
-  (remove-if-not (lambda (combination) (is-combination-valid ab-y result-y combination)) (time-expr (find-combinations ab-x result-x))))
+; (defun find-both-combinations (ab-x result-x ab-y result-y)
+;   (remove-if-not (lambda (combination) (is-combination-valid ab-y result-y combination)) (time-expr (find-combinations-efficient ab-x result-x ab-y result-y))))
 
-(assert (member '(80 40) (find-both-combinations '(94 22) 8400 '(34 67) 5400) :test #'equal))
+; (assert (member '(80 40) (find-both-combinations '(94 22) 8400 '(34 67) 5400) :test #'equal))
 
 (defun cheapest-combination-price (combinations)
   (apply #'min (mapcar #'calc-combination-price combinations)))
 
 (defun cheapest-possible-combination-price (ab-x result-x ab-y result-y)
-  (let ((combinations (find-both-combinations ab-x result-x ab-y result-y)))
-    (if combinations (cheapest-combination-price combinations))))
+  (let ((combination (find-best-combination-efficient ab-x result-x ab-y result-y)))
+    (if combination (calc-combination-price combination))))
 
 (assert (= 280 (cheapest-possible-combination-price '(94 22) 8400 '(34 67) 5400)))
 
 (defun get-cheapest-tokens-for-machine-descr (machine-descr)
-  (cheapest-possible-combination-price
-   (get-ab-x machine-descr)
-   (get-result-x machine-descr)
-   (get-ab-y machine-descr)
-   (get-result-y machine-descr)))
+  (progn 
+   (format t "DOING: ~a" machine-descr)
+   (time-expr (cheapest-possible-combination-price
+    (get-ab-x machine-descr)
+    (get-result-x machine-descr)
+    (get-ab-y machine-descr)
+    (get-result-y machine-descr)))))
 
 (assert (= 280 (get-cheapest-tokens-for-machine-descr (first (get-machine-descrs test-input)))))
 

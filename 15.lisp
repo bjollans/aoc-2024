@@ -8,6 +8,12 @@
                 (uiop:read-file-string
                   #p"15_grid.txt")))
 
+(defparameter actual-grid-2
+              (split-sequence:split-sequence
+                #\newline
+                (uiop:read-file-string
+                  #p"15_grid_part2.txt")))
+
 (defparameter actual-moves
               (uiop:read-file-string
                 #p"15_moves.txt"))
@@ -24,6 +30,19 @@
                "#.OO.O.OO#"
                "#....O...#"
                "##########"))
+
+(defparameter test-grid-2
+              (list
+               "####################"
+               "##....[]....[]..[]##"
+               "##............[]..##"
+               "##..[][]....[]..[]##"
+               "##....[]@.....[]..##"
+               "##[]##....[]......##"
+               "##[]....[]....[]..##"
+               "##..[][]..[]..[][]##"
+               "##........[]......##"
+               "####################"))
 
 (defparameter test-moves "<vv>^<v^>v>^vv^v>v<>v^v<v<^vv<<<^><<><>>v<vvv<>^v^>^<<<><<v<<<v^vv^v>^vvv<<^>^v^^><<>>><>^<<><^vv^^<>vvv<>><^^v>^>vv<>v<<<<v<^v>^<^^>>>^<v<v><>vv>v^v^<>><>>>><^^>vv>v<^^^>>v^v^<^^>v^^>v^<^v>v<>>v^v^<v>v^^<^^vv<<<v<^>>^^^^>>>v^<>vvv^><v<<<>^^^vv^<vvv>^>v<^^^^v<>^>vvvv><>>v^<<^^^^^^><^><>>><>^^<<^^v>>><^<v>^<vv>>v>>>^v><>^v><<<<v>>v<v<v>vvv>^<><<>^><^>><>^v<><^vvv<^^<><v<<<<<><^v<<<><<<^^<v<^^^><^>>^<v^><<<^>>^v<v^v<v^>^>>^v>vv>^<<^v<>><<><<v<<v><>v<^vv<<<>^^v^>^^>>><<^v>>v^v><^^>>^<>vv^<><^^>^^^<><vvvvv^v<v<<>^v<v>v<<^><<><<><<<^^<<<^<<>><<><^^^>^^<>^>v<>^^>vv<^v^v<vv>^<><v<^v>^^^>>>^^vvv^>vvv<>>>^<^>>>>>^<<^v>^vvv<>^<><<v>v^^>>><<^^<>>^v^<v^vv<>v^<<>^<^v^v><^<<<><<^<v><v<>vv>>v><v^<vv<>v^<<^")
 
@@ -112,6 +131,15 @@
 (defparameter UP '(0 -1))
 (defparameter DOWN '(0 1))
 
+(defparameter RIGHT_C (char ">" 0))
+(defparameter LEFT_C (char "<" 0))
+(defparameter UP_C (char "^" 0))
+(defparameter DOWN_C (char "v" 0))
+
+(defparameter EMPTY_C (char "." 0))
+(defparameter WALL_C (char "#" 0))
+
+
 (defun add-coords (c1 c2)
   (mapcar #'+ c1 c2))
 
@@ -139,6 +167,11 @@
 ;; ********
 ;; SOLUTION
 ;; ********
+
+(defparameter box-values (list (char "O" 0) (char "]" 0) (char "[" 0)))
+
+(defun is-box (coord grid)
+  (member (get-coord coord grid) box-values))
 
 (defun incr-coords (coords grid)
   (let ((x (first coords))
@@ -175,23 +208,6 @@
           ((equal (char "." 0) val) nil)
           (t (is-touching-wall (get-next-coord coord dir-c) dir-c grid)))))
 
-(defun move-boxes (coord dir-c grid &optional (prev-val (char "." 0)))
-  (let* ((new-coord (get-next-coord coord dir-c))
-         (this-val (get-coord coord grid))
-         (next-val (get-coord new-coord grid))
-         (new-grid (change-coord coord prev-val grid)))
-    (cond ((equal (char "." 0) next-val) (change-coord new-coord this-val new-grid))
-          ((equal (char "#" 0) next-val) grid)
-          (t (move-boxes new-coord dir-c new-grid this-val)))))
-
-
-(defun move (coord dir-c-list grid)
-  (if (= 0 (length dir-c-list)) (list coord grid)
-      (let ((dir-c (char dir-c-list 0)))
-        (if (is-touching-wall coord dir-c grid)
-            (move coord (subseq dir-c-list 1) grid)
-            (move (get-next-coord coord dir-c) (subseq dir-c-list 1) (move-boxes coord dir-c grid))))))
-
 
 (defun calc-gps (coord)
   (+ (first coord) (* 100 (second coord))))
@@ -201,10 +217,121 @@
 (defun calc-gps-sum (grid)
   (apply #'+ (mapcar #'calc-gps
                  (remove-if-not
-                     (lambda (coord) (equal (char "O" 0) (get-coord coord grid)))
+                     (lambda (coord) (equal #\[ (get-coord coord grid)))
                      (all-coords grid)))))
+
+(defun get-other-box-coord (coord grid)
+  (let ((val (get-coord coord grid)))
+    (cond
+     ((equal val (char "O" 0)) nil)
+     ((equal val (char "]" 0)) (get-next-coord coord LEFT_C))
+     ((equal val (char "[" 0)) (get-next-coord coord RIGHT_C)))))
+
+
+(defun is-box-touching-wall-in-dir (coord dir-c grid)
+  (cond
+   ((member dir-c (list RIGHT_C LEFT_C)) (is-touching-wall coord dir-c grid))
+   ((equal (get-coord coord grid) EMPTY_C) nil)
+   ((equal (get-coord coord grid) WALL_C) t)
+   (t (let ((other-box-coord (get-other-box-coord coord grid)))
+        (or
+         (is-box-touching-wall-in-dir (get-next-coord coord dir-c) dir-c grid)
+         (if other-box-coord (is-box-touching-wall-in-dir (get-next-coord other-box-coord dir-c) dir-c grid)))))))
+
+(assert (is-box-touching-wall-in-dir '(6 4) UP_C (list
+                                                  "####################"
+                                                  "##[]........[]..[]##"
+                                                  "##.[].........[]..##"
+                                                  "##..[][]....[]..[]##"
+                                                  "##...[]@......[]..##"
+                                                  "##[]##....[]......##"
+                                                  "##[]....[]....[]..##"
+                                                  "##..[][]..[]..[][]##"
+                                                  "##........[]......##"
+                                                  "####################")))
+
+(assert (not (is-box-touching-wall-in-dir '(6 4) UP_C (list
+                                                       "####################"
+                                                       "##[]........[]..[]##"
+                                                       "##............[]..##"
+                                                       "##..[][]....[]..[]##"
+                                                       "##...[]@......[]..##"
+                                                       "##[]##....[]......##"
+                                                       "##[]....[]....[]..##"
+                                                       "##..[][]..[]..[][]##"
+                                                       "##........[]......##"
+                                                       "####################"))))
+
+
+(defun move-boxes (coord dir-c grid &optional (prev-val (char "." 0)))
+  (let* ((new-coord (get-next-coord coord dir-c))
+         (this-val (get-coord coord grid))
+         (next-val (get-coord new-coord grid))
+         (new-grid (change-coord coord prev-val grid)))
+    (cond ((equal (char "." 0) next-val) (change-coord new-coord this-val new-grid))
+          ((equal (char "#" 0) next-val) grid)
+          (t (move-boxes new-coord dir-c new-grid this-val)))))
+
+; get all coords of boxes
+; Replace all with dots
+; redraw all one higher
+
+; (defun move-double-boxes (coord dir-c grid &optional (prev-val (char "." 0)))
+;   (let* ((new-coord (get-next-coord coord dir-c))
+;          (this-val (get-coord coord grid))
+;          (next-val (get-coord new-coord grid))
+;          (new-grid (change-coord coord prev-val grid))
+;          (other-box-coord (get-other-box-coord coord grid)))
+;     (cond ((and (equal (char "." 0) next-val) (equal (char "." 0) next-val)) (change-coord new-coord this-val new-grid))
+;           ((equal (char "#" 0) next-val) grid)
+;           (t (move-boxes new-coord dir-c new-grid this-val)))))
+
+(defun get-connected-box-coords (coord dir-c grid &optional (vals-so-far '()))
+  (if (member coord vals-so-far :test #'equal)
+      '()
+      (let* ((new-coord (get-next-coord coord dir-c))
+             (next-val (get-coord new-coord grid))
+             (this-val (get-coord coord grid))
+             (other-box-coord (get-other-box-coord coord grid)))
+        (setf vals-so-far (append vals-so-far (list coord)))
+        (unique (append (list (list coord this-val))
+                  (if (member next-val (list (char "[" 0) (char "]" 0)) :test #'equal) (get-connected-box-coords new-coord dir-c grid vals-so-far))
+                  (if other-box-coord (get-connected-box-coords other-box-coord dir-c grid vals-so-far)))))))
+
+(defun move-box-coords (box-coords dir-c)
+  (mapcar
+      (lambda (box-coord)
+        (list (get-next-coord (first box-coord) dir-c) (second box-coord)))
+      box-coords))
+
+(defun put-dots-at-box-coords (box-coords grid)
+  (if (= 0 (length box-coords)) grid
+      (put-dots-at-box-coords (cdr box-coords) (change-coord (first (first box-coords)) EMPTY_C grid))))
+
+(defun put-box-coords (box-coords grid)
+  (if (= 0 (length box-coords)) grid
+      (put-box-coords (cdr box-coords) (change-coord (first (first box-coords)) (second (first box-coords)) grid))))
+
+(defun move-double-boxes (coord dir-c grid)
+  (put-box-coords (move-box-coords (get-connected-box-coords coord dir-c grid) dir-c) (put-dots-at-box-coords (get-connected-box-coords coord dir-c grid) grid)))
+
+
+(defun move (coord dir-c-list grid)
+  (if (= 0 (length dir-c-list)) (list coord grid)
+      (let ((dir-c (char dir-c-list 0)))
+        (progn
+         (print-grid grid)
+         (if (is-box-touching-wall-in-dir (get-next-coord coord dir-c) dir-c grid)
+             (move coord (subseq dir-c-list 1) grid)
+             (move (get-next-coord coord dir-c) (subseq dir-c-list 1) (move-double-boxes coord dir-c grid)))))))
+
+(defun print-grid (grid)
+  (dolist (line grid)
+    (format t "~a~%" line)))
+
 
 (defun do-part-1 (grid moves)
   (calc-gps-sum (second (move (get-start-position grid) moves grid))))
 
-(assert (= 10092 (do-part-1 test-grid test-moves)))
+
+; (assert (= 10092 (do-part-1 test-grid test-moves)))

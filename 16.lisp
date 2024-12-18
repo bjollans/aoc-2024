@@ -59,6 +59,11 @@
        (format t "Statement ~a Elapsed time: ~a~%" ',expr (- (get-internal-real-time) time))
        res)))
 
+(defmacro xlambda (expr)
+  `(lambda (x) ,expr))
+
+(defmacro mapx (lst lambda-expr)
+  `(mapcar (xlambda ,lambda-expr) ,lst))
 
 (defparameter outside-grid-val ".")
 
@@ -151,24 +156,22 @@
 ;mapcar all directions if can move coords' score plus 1001, direction only plus 1)
 (defun get-improvable-neighbours (coords curr_dir grid score-memory)
   (let ((dirs-without-walls (remove-if-not
-                                (lambda (dir) (can-move coords dir grid))
+                                (xlambda (can-move coords x grid))
                                 ALL_DIRS))
         (coords-score (get-score-for-coord coords curr_dir score-memory)))
     (remove nil
-        (mapcar
-            (lambda (dir)
-              (let* ((new-coord (get-next-coord coords dir))
-                     (old-score (get-score-for-coord new-coord dir score-memory))
+        (mapx dirs-without-walls
+              (let* ((new-coord (get-next-coord coords x))
+                     (old-score (get-score-for-coord new-coord x score-memory))
                      (new-score (+ coords-score
-                                   (if (equal dir curr_dir)
+                                   (if (equal x curr_dir)
                                        1
                                        1001))))
                 (if (or (not old-score) (< new-score old-score))
                     (progn
-                     (set-score-for-coord new-coord dir new-score score-memory)
-                     (list new-coord dir))
-                    nil)))
-            dirs-without-walls))))
+                     (set-score-for-coord new-coord x new-score score-memory)
+                     (list new-coord x))
+                    nil))))))
 
 (defparameter fake-score-mem (make-hash-table :test #'equal))
 (set-score-for-coord '(1 13) RIGHT 0 fake-score-mem)
@@ -194,7 +197,7 @@
 (set-score-for-coord '(1 13) RIGHT 0 test-score-mem)
 
 (defun get-min-for-coords (coords score-memory)
-  (apply #'min (remove nil (mapcar (lambda (dir) (get-score-for-coord coords dir score-memory)) ALL_DIRS))))
+  (apply #'min (remove nil (mapx ALL_DIRS (get-score-for-coord coords x score-memory)))))
 
 (defun do-part-1 (grid)
   (let ((start-pos (first (get-position-of-char grid #\S)))

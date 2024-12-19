@@ -5,6 +5,14 @@
       (setf (ip prg) (+ 2 (ip prg))))))
 
 
+(defmacro print-val (expr)
+  `(let ((res ,expr))
+     (progn
+      (format t "~a: ~a" ',expr ,'res)
+      (terpri)
+      res)))
+
+
 (defclass Program ()
     ((A :initarg :A :accessor A)
      (B :initarg :B :accessor B)
@@ -114,21 +122,29 @@
   (format-int-lst (run prg)))
 
 
-(defun run-with-a (prg a-replacement)
+(defun run-with-a-check (prg a-replacement)
   (progn
    (setf (A prg) a-replacement)
-   (run prg)))
+   (labels ((helper ()
+                    (if (or
+                         (>= (ip prg) (1- (length (program prg))))
+                         (and (> (length (output prg)) 0) (not (equal (subseq (program prg) 0 (length (output prg))) (output prg)))))
+                        (output prg)
+                        (progn
+                         (do-next-op prg)
+                         (helper)))))
+     (helper))))
 
 (defun a-replacement-gives-itself (prg-fn a-replacement)
   (let ((prg (funcall prg-fn)))
-    (equal (program prg) (run-with-a prg a-replacement))))
+    (equal (program prg) (run-with-a-check prg a-replacement))))
 
 
 (defun find-self-creating-a (prg-fn &optional (start-val 0))
   (let ((a-replacement start-val))
     (loop while (not (a-replacement-gives-itself prg-fn a-replacement))
           do (incf a-replacement)
-            (if (= 0 (mod a-replacement 100000)) (format t "~d~%" a-replacement)))
+            (if (= 0 (mod a-replacement 1000000)) (format t "~d~%" a-replacement)))
     a-replacement))
 
 (defun do-part-2 (prog-fn &optional (start-val 0))

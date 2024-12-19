@@ -26,6 +26,26 @@
                "#S..#.....#...#";13
                "###############"))
 
+(defparameter test-input-2
+              (list
+               "#################";0
+               "#...#...#...#..E#";1
+               "#.#.#.#.#.#.#.#.#";2
+               "#.#.#.#...#...#.#";3
+               "#.#.#.#.###.#.#.#";4
+               "#...#.#.#.....#.#";5
+               "#.#.#.#.#.#####.#";6
+               "#.#...#.#.#.....#";7
+               "#.#.#####.#.###.#";8
+               "#.#.#.......#...#";9
+               "#.#.###.#####.###";10
+               "#.#.#...#.....#.#";11
+               "#.#.#.#####.###.#";12
+               "#.#.#.........#.#";13
+               "#.#.#.#########.#";14
+               "#S#.............#";15
+               "#################"))
+
 
 ;; ******
 ;; MACROS
@@ -63,7 +83,7 @@
   `(lambda (x) ,expr))
 
 (defmacro mapx (lst lambda-expr)
-  `(mapcar (xlambda ,lambda-expr) ,lst))
+  `(remove nil (mapcar (xlambda ,lambda-expr) ,lst)))
 
 (defparameter outside-grid-val ".")
 
@@ -170,6 +190,10 @@
                 (if (or (not old-score) (< new-score old-score))
                     (progn
                      (set-score-for-coord new-coord x new-score score-memory)
+                     (if (not (equal x curr_dir)) (let ((potential-new-score (+ coords-score 1000))
+                                                        (direction-old-score (get-score-for-coord coords x score-memory)))
+                                                    (if (or (not direction-old-score) (> direction-old-score potential-new-score))
+                                                        (set-score-for-coord coords x potential-new-score score-memory))))
                      (list new-coord x))
                     nil))))))
 
@@ -208,3 +232,69 @@
     (get-min-for-coords end-pos score-memory)))
 
 (assert (= 7036 (do-part-1 test-input)))
+(assert (= 11048 (do-part-1 test-input-2)))
+
+(defun best-val (coords score-memory)
+  (apply #'min (mapx ALL_DIRS (get-score-for-coord coords x score-memory))))
+
+(defun get-best-dirs (coords dir score-memory)
+  (let ((best-score (get-score-for-coord coords dir score-memory)))
+    (append (list dir)
+      (remove-if-not (xlambda (let ((score (get-score-for-coord coords x score-memory)))
+                                (and
+                                 score
+                                 (or
+                                  (= score (- best-score 1000))))))
+          ALL_DIRS))))
+
+(defparameter test-score-mem (make-hash-table :test #'equal))
+(set-score-for-coord '(1 13) RIGHT 0 test-score-mem)
+(search-paths (list (list '(1 13) RIGHT)) test-input test-score-mem)
+
+(defun opposite-dir (dir)
+  (cond
+   ((equal dir UP) DOWN)
+   ((equal dir DOWN) UP)
+   ((equal dir LEFT) RIGHT)
+   ((equal dir RIGHT) LEFT)))
+
+
+(defun get-best-neighbours (coords dir score-memory)
+  (let* ((curr-score (get-score-for-coord coords dir score-memory))
+         (best-dirs (get-best-dirs coords dir score-memory))
+         (dirs-to-check (mapx best-dirs (opposite-dir x)))
+         (possible-next-coords (mapx dirs-to-check (list (get-next-coord coords x) (opposite-dir x)))))
+    (remove-if-not (xlambda
+                     (let ((score (get-score-for-coord (first x) (second x) score-memory)))
+                       (or
+                        (and score (= (1- curr-score) score))
+                        (and score (not (equal (second x) dir)) (= (- curr-score 1001) score)))))
+        possible-next-coords)))
+
+(defun search-best-path-coords (coords-q score-memory &optional coords-so-far)
+  (if (equal '() coords-q) coords-so-far
+      (let ((next-coords (remove-if
+                             (xlambda (member x coords-so-far :test #'equal))
+                             (get-best-neighbours (first (first coords-q)) (second (first coords-q)) score-memory))))
+        (search-best-path-coords
+          (append (cdr coords-q) next-coords)
+          score-memory
+          (append coords-so-far next-coords)))))
+
+(defun do-part-2 (grid)
+  (let ((start-pos (first (get-position-of-char grid #\S)))
+        (end-pos (first (get-position-of-char grid #\E)))
+        (score-memory (make-hash-table :test #'equal)))
+    (set-score-for-coord start-pos RIGHT 0 score-memory)
+    (search-paths (list (list start-pos RIGHT)) grid score-memory)
+    (let* ((final-score (get-min-for-coords end-pos score-memory))
+           (final-dir (first (remove-if-not (xlambda
+                                              (let ((dir-score (get-score-for-coord end-pos x score-memory)))
+                                                (and dir-score (= final-score dir-score))))
+                                 ALL_DIRS))))
+      (length (unique (mapcar #'first (search-best-path-coords (list (list end-pos final-dir)) score-memory (list (list end-pos final-dir)))))))))
+
+(assert (= 45 (do-part-2 test-input)))
+(assert (= 64 (do-part-2 test-input-2)))
+(assert (= 160624 (do-part-1 actual-input)))
+(assert (= 160624 (do-part-1 actual-input)))

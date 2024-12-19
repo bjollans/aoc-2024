@@ -45,19 +45,32 @@
   (if (= 0 a) '()
       (let* ((b (logxor 1 (logand 7 a)))
              (next-print (logand 7 (logxor 4 (logxor b (ash a (* -1 b)))))))
-        (if (not (= (first list-goal) next-print))
-            '()
-            (append (list next-print) (fast-actual-run (ash a -3) (cdr list-goal)))))))
+        ; (if (not (= (first list-goal) next-print))
+        ;     '()
+        (append (list next-print) (fast-actual-run (ash a -3) (cdr list-goal))))))
+
+
+(defun fast-actual-run-simple (a)
+  (if (= 0 a) '()
+      (let ((b (logxor 1 (logand 7 a))))
+        (append (list (logand 7 (logxor 4 (logxor b (ash a (* -1 b))))))
+          (fast-actual-run-simple (ash a -3))))))
 
 (defun with-occasional-print (num)
   (progn
    (if (= 0 (mod num 1000000)) (format t "~d~%" num))
    num))
 
-(defun do-part-2-actual (a-trial list-goal)
-  (if (equal list-goal (fast-actual-run a-trial list-goal))
+(defun do-part-2-actual-step (a-trial list-goal)
+  (if (equal list-goal (fast-actual-run-simple a-trial))
       a-trial
-      (do-part-2-actual (1+ (with-occasional-print a-trial)) list-goal)))
+      (do-part-2-actual-step (1+ (with-occasional-print a-trial)) list-goal)))
+
+(defun do-part-2-actual (list-goal &optional (subseq-start 0))
+  (if (= subseq-start (1- (length list-goal)))
+      (do-part-2-actual-step 0 (subseq list-goal subseq-start))
+      (do-part-2-actual-step (ash (do-part-2-actual list-goal (1+ subseq-start)) 3) (subseq list-goal subseq-start))))
+;do part 2 actual for sublist on end. Then take (ash prev_num 3) as next start)
 
 (defun test-prog ()
   (make-instance 'Program
@@ -220,4 +233,6 @@
 ;Maybe combine prog into a single instruction?
 ; Or stop sooner if first val does not match (up to 9 times faster)
 
-(assert (= 59397658 (do-part-2-actual 0 '(4 6 1 4 2 1 3 1 6))))
+(assert (= 59397658 (do-part-2-actual '(4 6 1 4 2 1 3 1 6))))
+
+;latest brute force 95145000000

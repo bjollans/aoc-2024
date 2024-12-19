@@ -21,6 +21,7 @@
      (ip :initarg :ip :accessor ip)
      (output :initarg :output :accessor output)))
 
+;jump only happens with 3 0 at end (for all progs) -> Will just repeat everything until a is 0
 
 (defun actual-prog ()
   (make-instance 'Program
@@ -31,6 +32,32 @@
     :ip 0
     :output '()))
 
+; 2 4 -> write A mod 8 to B
+; 1 1 -> Increments B
+; 7 5 -> shifts a to the left by B and stores in C (first time: write A<<<3 to C)
+; 4 6 -> XOR of b and c (XOR of A and A+1 first time) stores in B
+; 1 4 -> XOR to b and 4; stores in B
+; 0 3 -> Shifts A by 3 to left
+; 5 5 -> prints B
+;-> cycles until A is 0
+
+(defun fast-actual-run (a list-goal)
+  (if (= 0 a) '()
+      (let* ((b (logxor 1 (logand 7 a)))
+             (next-print (logand 7 (logxor 4 (logxor b (ash a (* -1 b)))))))
+        (if (not (= (first list-goal) next-print))
+            '()
+            (append (list next-print) (fast-actual-run (ash a -3) (cdr list-goal)))))))
+
+(defun with-occasional-print (num)
+  (progn
+   (if (= 0 (mod num 1000000)) (format t "~d~%" num))
+   num))
+
+(defun do-part-2-actual (a-trial list-goal)
+  (if (equal list-goal (fast-actual-run a-trial list-goal))
+      a-trial
+      (do-part-2-actual (1+ (with-occasional-print a-trial)) list-goal)))
 
 (defun test-prog ()
   (make-instance 'Program
@@ -41,6 +68,7 @@
     :ip 0
     :output '()))
 
+;117440
 (defun test-prog-2 ()
   (make-instance 'Program
     :A 2024
@@ -60,9 +88,6 @@
     (5 (B prg))
     (6 (C prg))))
 
-(defun literal (operand)
-  operand)
-
 (defun operand (prg)
   (nth (1+ (ip prg)) (program prg)))
 
@@ -76,7 +101,7 @@
 (prgfun bdv B (ash (A prg) (* -1 (combo (operand prg) prg))))
 (prgfun cdv C (ash (A prg) (* -1 (combo (operand prg) prg))))
 
-(prgfun bxl B (logxor (B prg) (literal (operand prg))))
+(prgfun bxl B (logxor (B prg) (operand prg)))
 (prgfun bxc B (logxor (B prg) (C prg)))
 
 (prgfun bst B (mod8 (combo (operand prg) prg)))
@@ -86,7 +111,7 @@
   (setf (ip prg)
     (if (= 0 (A prg))
         (+ 2 (ip prg))
-        (literal (operand prg)))))
+        (operand prg))))
 
 
 (defun next-op (prg)
@@ -116,6 +141,10 @@
       (output prg)
       (progn
        (do-next-op prg)
+       (print-val (A prg))
+       (print-val (B prg))
+       (print-val (C prg))
+       (print-val "")
        (run prg))))
 
 (defun do-part-1 (prg)
@@ -190,3 +219,5 @@
 
 ;Maybe combine prog into a single instruction?
 ; Or stop sooner if first val does not match (up to 9 times faster)
+
+(assert (= 59397658 (do-part-2-actual 0 '(4 6 1 4 2 1 3 1 6))))

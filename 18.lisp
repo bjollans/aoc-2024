@@ -207,6 +207,11 @@
 
 (assert (= 22 (do-part-1 test-input '(7 7) 12 '(6 6))))
 
+(defun do-part-2 (input grid-size input-limit end-pos)
+    (if (print-val (do-part-1 input grid-size (print-val input-limit) end-pos) )
+        (do-part-2 input grid-size (1+ input-limit) end-pos)
+        (nth (1- input-limit) input)))
+
 ; part 1
 ; * (defparameter score-mem (make-hash-table :test #'equal))
 ; SCORE-MEM

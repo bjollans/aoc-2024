@@ -67,7 +67,7 @@
 (defun is-combination-valid (pattern-q towels)
   (if (not pattern-q) nil
       (let ((next-pattern (first pattern-q)))
-        (if (any-towel-matches-exactly (print-val next-pattern) towels) t
+        (if (or (string= "" next-pattern) (any-towel-matches-exactly next-pattern towels)) t
             (let* ((matching-towels (get-next-matching-towels next-pattern towels))
                    (next-patterns (if matching-towels
                                       (mapx matching-towels (remove-towel-from-pattern next-pattern x))
@@ -78,6 +78,26 @@
 (assert (not (is-combination-valid (list "ubwu") test-towels)))
 
 (defun do-part-1 (patterns towels)
-  (length (remove-if-not (xlambda (time-expr (is-combination-valid (list x) towels))) patterns)))
+  (length (remove-if-not (xlambda (is-combination-valid (list x) towels)) patterns)))
 
 (assert (= 6 (do-part-1 test-input test-towels)))
+
+(defun count-valid-combinations (pattern towels)
+  (let ((sub-pattern-cnt-mem (make-hash-table :test #'equal)))
+    (labels ((helper (pattern)
+                     (cond
+                      ((gethash pattern sub-pattern-cnt-mem) (gethash pattern sub-pattern-cnt-mem))
+                      ((string= "" pattern) 1)
+                      (t (let* ((matching-towels (get-next-matching-towels pattern towels))
+                                (next-patterns (mapx matching-towels (remove-towel-from-pattern pattern x)))
+                                (cnt (apply #'+ (mapcar #'helper next-patterns))))
+                           (setf (gethash pattern sub-pattern-cnt-mem) cnt)
+                           cnt)))))
+      (helper pattern))))
+
+(assert (= 16 (count-valid-combinations "gbbrgbbr" test-towels)))
+
+(defun do-part-2 (patterns towels)
+    (apply #'+ (mapx patterns (count-valid-combinations x towels))))
+
+(assert (= 16 (do-part-2 test-input test-towels)))

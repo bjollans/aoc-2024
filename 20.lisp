@@ -7,7 +7,7 @@
 (defparameter test-input
               (list
                "###############"
-               "#...#...#.....#"
+               "#FG.#...#.....#"
                "#.#.#.#.#.###.#"
                "#S#...#.#.#...#"
                "#######.#.#.###"
@@ -18,8 +18,8 @@
                "#...###...#...#"
                "#.#####.#.###.#"
                "#.#...#.#.#...#"
-               "#.#.#.#.#.#.###"
-               "#...#...#...###"
+               "#.#.#.#.#G#.###"
+               "#...#...#F..###"
                "###############"))
 
 (defparameter RIGHT '(1 0))
@@ -160,3 +160,94 @@
 (assert (= 1 (count-cheats-with-gain test-input 38 #'=)))
 (assert (= 1 (count-cheats-with-gain test-input 40 #'=)))
 (assert (= 1 (count-cheats-with-gain test-input 64 #'=)))
+
+
+(defun remove-out-of-bounds (coords-list grid)
+  (remove-if (lambda (coords)
+               (let ((x (first coords))
+                     (y (second coords)))
+                 (or
+                  (< y 0)
+                  (< x 0)
+                  (>= y (length grid))
+                  (>= x (length (nth y grid))))))
+      coords-list))
+
+
+(defun coord-diff (c1 c2)
+  (+ (abs (- (first c1) (first c2))) (abs (- (second c1) (second c2)))))
+
+(defun are-in-radius (c1 c2 r)
+  (<= (coord-diff c1 c2) r))
+
+(defun get-radius-coords (coords grid)
+  (remove-out-of-bounds
+    (let ((coords-list (list))
+          (coords-x (first coords))
+          (coords-y (second coords)))
+      (dotimes (x 45)
+        (dotimes (y 45)
+          (let ((new-coords (list (+ (- coords-x 24) x) (+ (- coords-y 24) y))))
+            (if (are-in-radius coords new-coords 20)
+                (setf coords-list
+                  (append
+                    coords-list
+                    (list new-coords)))))))
+      coords-list)
+    grid))
+
+(defun score-diff (c1 c2 score-mem)
+  (- (gethash c2 score-mem) (gethash c1 score-mem)))
+
+;Distance between starts is just dots and distance between ends is also just dots
+; -> score difference is same as coord difference => distance is only dots
+(defun is-the-same-cheat-according-to-2-i-think (c1-start c1-end c2-start c2-end score-mem)
+  (and
+   (= (score-diff c1-start c2-start score-mem) (coord-diff c1-start c2-start))
+   (= (score-diff (print-val c1-end) (print-val c2-end) score-mem) (coord-diff c1-end c2-end))))
+
+
+(defun special-unique-for-cheat-2 (lst score-mem)
+  (if (equal '() lst)
+      '()
+      (append
+        (if (some
+                (xlambda (is-the-same-cheat-according-to-2-i-think (first (first lst)) (second (first lst)) (first x) (second x) score-mem))
+                (cdr lst)) '() (list (first lst)))
+        (special-unique-for-cheat-2 (cdr lst) score-mem))))
+
+
+(defun count-cheats-with-gain-2-list (grid picosecond-gain &optional (test-fn #'>=))
+  (let ((score-mem (calculate-scores grid)))
+    (mapcan
+        (lambda (coords)
+          (let ((coord-score (gethash coords score-mem)))
+            (if coord-score
+                (mapx (get-radius-coords coords grid)
+                      (let* ((neighbour-score (gethash x score-mem)))
+                        (if (and
+                             neighbour-score
+                             (apply test-fn (list (- neighbour-score coord-score (coord-diff x coords)) picosecond-gain)))
+                            (list coords x)))))))
+        (all-coords grid))))
+
+(defun count-cheats-with-gain-2 (grid picosecond-gain &optional (test-fn #'>=))
+  (length (count-cheats-with-gain-2-list grid picosecond-gain test-fn)))
+
+
+(special-unique-for-cheat-2 (count-cheats-with-gain-2-list test-input 76 #'=) (calculate-scores test-input))
+
+(assert (= 32 (count-cheats-with-gain-2 test-input 50 #'=)))
+(assert (= 31 (count-cheats-with-gain-2 test-input 52 #'=)))
+(assert (= 29 (count-cheats-with-gain-2 test-input 54 #'=)))
+(assert (= 39 (count-cheats-with-gain-2 test-input 56 #'=)))
+(assert (= 25 (count-cheats-with-gain-2 test-input 58 #'=)))
+(assert (= 23 (count-cheats-with-gain-2 test-input 60 #'=)))
+(assert (= 20 (count-cheats-with-gain-2 test-input 62 #'=)))
+(assert (= 19 (count-cheats-with-gain-2 test-input 64 #'=)))
+(assert (= 12 (count-cheats-with-gain-2 test-input 66 #'=)))
+(assert (= 14 (count-cheats-with-gain-2 test-input 68 #'=)))
+(assert (= 12 (count-cheats-with-gain-2 test-input 70 #'=)))
+(assert (= 22 (count-cheats-with-gain-2 test-input 72 #'=)))
+(assert (= 4 (count-cheats-with-gain-2 test-input 74 #'=)))
+(assert (= 3 (count-cheats-with-gain-2 test-input 76 #'=)))

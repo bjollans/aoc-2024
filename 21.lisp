@@ -8,6 +8,15 @@
 (defmacro xlambda (expr)
   `(lambda (x) ,expr))
 
+
+(defmacro memfun (name args expr code)
+  `(defun ,name ,args
+     (let ((memory (make-hash-table :test #'equal)))
+       (labels ((call-self ,args ,expr)) ,code))))
+
+(defun hash-keys (hash-table)
+  (loop for key being the hash-keys of hash-table collect key))
+
 ;optimization to just store the pad as a hashmap of chars to coords
 
 (defparameter numpad
@@ -73,9 +82,6 @@
 (defun sort-bothpads-path/reversed (path)
   (sort path #'sort-dirs/reversed))
 
-(defun sort-arrowpad-path (path)
-  (reverse (sort-numpad-path path)))
-
 (defun get-shortest-path-between-coords (coord1 coord2)
   (let* ((diff (coord-diff coord1 coord2))
          (x-diff (first diff))
@@ -98,35 +104,81 @@
    (or (is-in-same-row coord1 bad-coord) (is-in-same-row coord2 bad-coord))
    (or (is-in-same-col coord1 bad-coord) (is-in-same-col coord2 bad-coord))))
 
+(defparameter memory (make-hash-table :test #'equal))
+
+(defun get-path-from-mem (coord1 coord2 bad-coord)
+  (gethash (list coord1 coord2 bad-coord) memory))
+
+(defun set-path-to-mem (coord1 coord2 bad-coord path)
+  (setf (gethash (list coord1 coord2 bad-coord) memory) path))
+
+
+(defun coord-pair-to-path (coord1 coord2 bad-coord)
+  (or (get-path-from-mem coord1 coord2 bad-coord)
+      (progn
+       (set-path-to-mem
+         coord1 coord2 bad-coord
+         (append
+           (if (would-cross-bad-coord coord1 coord2 bad-coord)
+               (sort-bothpads-path/reversed (get-shortest-path-between-coords coord1 coord2))
+               (sort-bothpads-path/normal (get-shortest-path-between-coords coord1 coord2)))
+           '(#\A)))
+       (get-path-from-mem coord1 coord2 bad-coord))))
+
 
 (defun coord-list-to-paths-list (coord-list bad-coord)
   (if (> (length coord-list) 1)
       (append
-        (if (would-cross-bad-coord (first coord-list) (second coord-list) bad-coord)
-            (sort-bothpads-path/reversed (get-shortest-path-between-coords (first coord-list) (second coord-list)))
-            (sort-bothpads-path/normal (get-shortest-path-between-coords (first coord-list) (second coord-list))))
-        '(#\A)
+        (coord-pair-to-path (first coord-list) (second coord-list) bad-coord)
         (coord-list-to-paths-list (cdr coord-list) bad-coord))))
 
+(defmacro mapx (lst lambda-expr)
+  `(remove nil (mapcar (xlambda ,lambda-expr) ,lst)))
+
+(defun get-coord-pair-list (coord-list)
+  (if (> (length coord-list) 2)
+      (append
+        (list (list 1 (list (first coord-list) (second coord-list))))
+        (list (get-coord-pair-list (cdr coord-list))))
+      (list (list 1 (list (first coord-list) (second coord-list))))))
+
+(memfun group-cnt-items (cnt-item-list)
+        (if (> (length cnt-item-list) 0)
+            (progn
+             (let* ((cnt-item-w-cnt (first cnt-item-list))
+                    (cnt-item-cnt (first cnt-item-w-cnt))
+                    (cnt-item (second cnt-item-w-cnt))
+                    (latest-count (or (gethash cnt-item memory) 0)))
+               (setf (gethash cnt-item memory) (+ cnt-item-cnt latest-count)))
+             (call-self (rest cnt-item-list)))
+            (mapx (hash-keys memory) (list (gethash x memory) x)))
+        (call-self cnt-item-list))
 
 (defun get-shortest-path (char-list pad bad-coord)
   (let* ((coord-list (mapx (cons #\A char-list) (get-btn-coord x pad))))
     (coord-list-to-paths-list coord-list bad-coord)))
 
-; (assert (equal
-;          (get-shortest-path '(#\0 #\2 #\9 #\A) numpad numpad-reverse-coords)
-;          '(#\< #\A #\^ #\A #\> #\^ #\^ #\A #\v #\v #\v #\A)))
-
-(assert (=
-            (length (get-shortest-path '(#\< #\A #\^ #\A #\> #\^ #\^ #\A #\v #\v #\v #\A) arrowpad '(0 0)))
-          (length '(#\v #\< #\< #\A #\> #\> #\^ #\A #\< #\A #\> #\A #\v #\A #\< #\^ #\A #\A #\> #\A #\< #\v #\A #\A #\A #\> #\^ #\A))))
+(defun pathlist-length (pathlist)
+  (apply #'+ (mapx pathlist (* (first x) (length (second x))))))
 
 (defun do-part-1-for-1-line (char-list)
-  (get-shortest-path
-    (get-shortest-path
-      (get-shortest-path char-list numpad '(0 3))
+  (expand-char-cnt-list
+    (expand-char-cnt-list
+      (expand-char-cnt-list (list (list 1 char-list)) numpad '(0 3))
       arrowpad '(0 0))
     arrowpad '(0 0)))
+
+(defun char-list-to-btn-groups (char-list)
+  (mapx
+    (reverse (cdr (reverse (split-sequence:split-sequence #\A (coerce char-list 'string)))))
+    (append (coerce x 'list) '(#\A))))
+
+(defun expand-char-cnt-list (char-cnt-list pad bad-coord)
+  (group-cnt-items (mapcan
+                       (xlambda
+                         (mapcar (lambda (sub-path) (list (first x) sub-path))
+                             (char-list-to-btn-groups (get-shortest-path (second x) pad bad-coord))))
+                       char-cnt-list)))
 
 (defun do-part-1 (lines)
   (if (= 0 (length lines)) 0
@@ -134,25 +186,85 @@
         (do-part-1-for-1-line (first lines))
         (do-part-1 (cdr lines)))))
 
-(* 29 (length (do-part-1-for-1-line '(#\0 #\2 #\9 #\A))))
+(* 29 (pathlist-length (do-part-1-for-1-line '(#\0 #\2 #\9 #\A))))
 
-(assert (= 68 (length (do-part-1-for-1-line '(#\0 #\2 #\9 #\A)))))
-(assert (= 60 (length (do-part-1-for-1-line '(#\9 #\8 #\0 #\A)))))
-(assert (= 68 (length (do-part-1-for-1-line '(#\1 #\7 #\9 #\A)))))
-(assert (= 64 (length (do-part-1-for-1-line '(#\4 #\5 #\6 #\A)))))
-(assert (= 64 (length (do-part-1-for-1-line '(#\3 #\7 #\9 #\A)))))
+(assert (= 68 (pathlist-length (do-part-1-for-1-line '(#\0 #\2 #\9 #\A)))))
+(assert (= 60 (pathlist-length (do-part-1-for-1-line '(#\9 #\8 #\0 #\A)))))
+(assert (= 68 (pathlist-length (do-part-1-for-1-line '(#\1 #\7 #\9 #\A)))))
+(assert (= 64 (pathlist-length (do-part-1-for-1-line '(#\4 #\5 #\6 #\A)))))
+(assert (= 64 (pathlist-length (do-part-1-for-1-line '(#\3 #\7 #\9 #\A)))))
 ; -  ^  A
 ; <  v  >
 
 (assert (= 126384 (+
-                   (* 29 (length (do-part-1-for-1-line '(#\0 #\2 #\9 #\A))))
-                   (* 980 (length (do-part-1-for-1-line '(#\9 #\8 #\0 #\A))))
-                   (* 179 (length (do-part-1-for-1-line '(#\1 #\7 #\9 #\A))))
-                   (* 456 (length (do-part-1-for-1-line '(#\4 #\5 #\6 #\A))))
-                   (* 379 (length (do-part-1-for-1-line '(#\3 #\7 #\9 #\A)))))))
+                   (* 29 (pathlist-length (do-part-1-for-1-line '(#\0 #\2 #\9 #\A))))
+                   (* 980 (pathlist-length (do-part-1-for-1-line '(#\9 #\8 #\0 #\A))))
+                   (* 179 (pathlist-length (do-part-1-for-1-line '(#\1 #\7 #\9 #\A))))
+                   (* 456 (pathlist-length (do-part-1-for-1-line '(#\4 #\5 #\6 #\A))))
+                   (* 379 (pathlist-length (do-part-1-for-1-line '(#\3 #\7 #\9 #\A)))))))
 
-(+ (* 140 (length (do-part-1-for-1-line '(#\1 #\4 #\0 #\A))))
-(* 169 (length (do-part-1-for-1-line '(#\1 #\6 #\9 #\A))))
-(* 170 (length (do-part-1-for-1-line '(#\1 #\7 #\0 #\A))))
-(* 528 (length (do-part-1-for-1-line '(#\5 #\2 #\8 #\A))))
-(* 340 (length (do-part-1-for-1-line '(#\3 #\4 #\0 #\A)))))
+(+ (* 140 (pathlist-length (do-part-1-for-1-line '(#\1 #\4 #\0 #\A))))
+   (* 169 (pathlist-length (do-part-1-for-1-line '(#\1 #\6 #\9 #\A))))
+   (* 170 (pathlist-length (do-part-1-for-1-line '(#\1 #\7 #\0 #\A))))
+   (* 528 (pathlist-length (do-part-1-for-1-line '(#\5 #\2 #\8 #\A))))
+   (* 340 (pathlist-length (do-part-1-for-1-line '(#\3 #\4 #\0 #\A)))))
+
+(defun do-part-2-for-1-line (char-list)
+  (expand-char-cnt-list
+    (expand-char-cnt-list
+      (expand-char-cnt-list
+        (expand-char-cnt-list
+          (expand-char-cnt-list
+            (expand-char-cnt-list
+              (expand-char-cnt-list
+                (expand-char-cnt-list
+                  (expand-char-cnt-list
+                    (expand-char-cnt-list
+                      (expand-char-cnt-list
+                        (expand-char-cnt-list
+                          (expand-char-cnt-list
+                            (expand-char-cnt-list
+                              (expand-char-cnt-list
+                                (expand-char-cnt-list
+                                  (expand-char-cnt-list
+                                    (expand-char-cnt-list
+                                      (expand-char-cnt-list
+                                        (expand-char-cnt-list
+                                          (expand-char-cnt-list
+                                            (expand-char-cnt-list
+                                              (expand-char-cnt-list
+                                                (expand-char-cnt-list
+                                                  (expand-char-cnt-list
+                                                    (expand-char-cnt-list (list (list 1 char-list)) numpad '(0 3))
+                                                    arrowpad '(0 0))
+                                                  arrowpad '(0 0))
+                                                arrowpad '(0 0))
+                                              arrowpad '(0 0))
+                                            arrowpad '(0 0))
+                                          arrowpad '(0 0))
+                                        arrowpad '(0 0))
+                                      arrowpad '(0 0))
+                                    arrowpad '(0 0))
+                                  arrowpad '(0 0))
+                                arrowpad '(0 0))
+                              arrowpad '(0 0))
+                            arrowpad '(0 0))
+                          arrowpad '(0 0))
+                        arrowpad '(0 0))
+                      arrowpad '(0 0))
+                    arrowpad '(0 0))
+                  arrowpad '(0 0))
+                arrowpad '(0 0))
+              arrowpad '(0 0))
+            arrowpad '(0 0))
+          arrowpad '(0 0))
+        arrowpad '(0 0))
+      arrowpad '(0 0))
+    arrowpad '(0 0)))
+
+
+(+ (* 140 (pathlist-length (do-part-2-for-1-line '(#\1 #\4 #\0 #\A))))
+   (* 169 (pathlist-length (do-part-2-for-1-line '(#\1 #\6 #\9 #\A))))
+   (* 170 (pathlist-length (do-part-2-for-1-line '(#\1 #\7 #\0 #\A))))
+   (* 528 (pathlist-length (do-part-2-for-1-line '(#\5 #\2 #\8 #\A))))
+   (* 340 (pathlist-length (do-part-2-for-1-line '(#\3 #\4 #\0 #\A)))))
